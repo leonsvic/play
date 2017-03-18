@@ -16,3 +16,6 @@ export TERM=xterm-color
 # show full dir path 
 PS1='\u@liangsvm:\w\$ '
 alias vi='vim'
+alias ll='ls -lrt'
+
+export PYTHONSTARTUP=~/.pythonrc.py
