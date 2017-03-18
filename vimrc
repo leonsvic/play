@@ -19,6 +19,10 @@ set showcmd
 
 set autoindent "auto indent
 
+“highlight the charater that over 80 in the line
+highlight OverLength ctermbg=red ctermfg=white guibg=#592929
+match OverLength /\%81v.\+/
+
 "set nowrap "no wrap in long line
 "set ruler " Always show current positions along the bottom
 "set ignorecase smartcase " easier to ignore case for searching
