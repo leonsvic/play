@@ -26,13 +26,3 @@ done
 rm -rf tmptask
 
 
-
-# original simple testing version
-exit
-
-cat $taskinfofile  | awk -F "," '{print($4)}' | sort -g | uniq -c | while read line
-do 
-	[ `echo $line | cut -d" " -f2` -le 10 ] && echo $line >> tmptask
-done
-
-python getsum.py tmptask
