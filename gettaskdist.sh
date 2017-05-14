@@ -7,7 +7,7 @@ for (( i=0; i<${#range[@]}; i++ ))
 do
 	[ ${range[$i]} -eq 0 ] && continue
 	j=$((i-1))
-	echo -n ${range[$j]}" - "${range[$i]}" "
+	echo -n ${range[$j]}" - "${range[$i]}", "
 
 	rm -rf tmptask
 	cat $taskinfofile  | awk -F "," '{print($4)}' | sort -g | uniq -c | sed '1d' | while read line
@@ -19,10 +19,12 @@ do
 	if [ -f tmptask ] 
 	then
 		# if just one line in tmptask, getsum doesn't work, so print the only line out directly
-		[ `cat tmptask | wc -l` -eq "1" ] && sed -e 's/^/\[ /' -e 's/$/ \]/' tmptask && continue 
-		python getsum.py tmptask && continue
+		[ `cat tmptask | wc -l` -eq "1" ] && cat tmptask | awk '{print($1)}'  && continue 
+		#python getsum.py tmptask  && continue
+		python getsum.py tmptask | awk '{print($2)}' && continue
 	fi
-	echo
+	#if goes here, means there's no sampling in current range, put a 0 here 
+	echo "0"
 #	echo "----"
 done
 
