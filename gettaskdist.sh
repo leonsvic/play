@@ -50,4 +50,25 @@ done
 rm -rf tmptask
 rm -rf tmpresult
 
+
+# print top#20 long tasks
+echo -e "\nThe top#20 longest tasks are:"
+sort -n -k 4 -t , $taskinfofile | tail -20
+
+grep -q "attempt" $taskinfofile
+isspark=$?
+[ $isspark -eq "1" ] && exit # if no attempt in the inputfule (-eq 1), quite directly
+
+# print the shortest tasks of that longest task
+echo -e "\nThe shortest vs the longest in the same job:"
+sort -n -k 4 -t , $taskinfofile  | tail -20 | while read line
+do 
+	app=`echo $line | awk -F "_" '{print $1"_"$2"_"$3"_"$4}'`
+	echo 	"The long one: "$line
+	echo -n "The shortest: " 
+	grep $app data/mr_taskinfo | sort -n -k 4 -t , -r | tail -1
+	echo 
+done
+
+
 # add a line to see how git diff works
