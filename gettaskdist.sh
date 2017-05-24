@@ -32,7 +32,8 @@ echo "--"
 #cat tmpresult
 echo -n "SUM:"
 sum=`python getsum.py tmpresult | sed -e "s/\s//g" | cut -d. -f3`
-echo $sum
+#avg=`python getavg.py tmpresult`
+echo -n -e $sum "\tAVG:" `cat $taskinfofile | awk -F "," '{print $4}' | awk '{a+=$1}END{print a/NR}'` "\n"
 echo "--"
 
 # calculate the percentage of each line
@@ -58,6 +59,12 @@ sort -n -k 4 -t , $taskinfofile | tail -20
 grep -q "attempt" $taskinfofile
 isspark=$?
 [ $isspark -eq "1" ] && exit # if no attempt in the inputfule (-eq 1), quite directly
+
+
+
+exit
+
+
 
 # print the shortest tasks of that longest task
 echo -e "\nThe shortest vs the longest in the same job:"
