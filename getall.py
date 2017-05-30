@@ -70,10 +70,12 @@ def getServerConfig(FolderIPDict):
 def getServerPerfDict(FolderIPDict):
     ServerPerfFile = "sum_cron*"
     ServerPerfDict, PerfDict = {}, {}
+
     for (k, v) in FolderIPDict.items():
         PerfDict = copy.deepcopy(PerfDict) if PerfDict else PerfDict
         PerfDict = {}
         ServerPerfDict[v] = PerfDict
+
         with open(glob.glob(os.path.join(WorkingDir, k, ServerPerfFile))[0]) as f:
             # f like ../0524-24H/tdw-100-76-29-2/sum_cron.2017-05-24.tdw-100-76-29-2
             # only the 1st 10 lines in this file matters,,, could add "failure tasks info" later
