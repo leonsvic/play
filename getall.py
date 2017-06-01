@@ -162,7 +162,7 @@ def getServerUtilDict(FolderIPDict):
         UtilDict["avgSteal"] = CpuUtil[4]
         UtilDict["avgIdle"] = CpuUtil[5]
 
-        os.system("rm -rf tmpcpu, tmpvcore, tmpvcoresum")
+        os.system("rm -rf tmpcpu tmpvcore tmpvcoresum")
 
     return ServerUtilDict
 
@@ -222,7 +222,7 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
         MR_SQL_Nbr = float(datatable[row][13]) + float(datatable[row][17])
         MR_SQL_Nbr_vs_Ref = MR_SQL_Nbr/ref_tput if ref_tput != 0 else 0
 
-        MR_SQL_Nbr_Per_Watt = float(MR_SQL_Nbr)/float(datatable[row][22])/24 if datatable[row][22] !=0 else 0
+        MR_SQL_Nbr_Per_Watt = float(MR_SQL_Nbr)/float(datatable[row][22])/int(Duration) if datatable[row][22] !=0 else 0
         MR_SQL_Nbr_Per_Watt_vs_Ref = MR_SQL_Nbr_Per_Watt/ref_tput_per_watt if ref_tput != 0 else 0
 
         print "{ip}\t{smt}/{vcore}/{freq}\t{mr_nbr}\t". \
