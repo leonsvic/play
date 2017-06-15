@@ -138,9 +138,13 @@ def getServerUtilDict(FolderIPDict):
         sdr = glob.glob(os.path.join(WorkingDir, k, sdrfile))[0]
         cmd_getcpu = "grep -A 1 avg-cpu " + sdr + " | grep -v 'avg-cpu' | grep -v '\-\-' " \
                                                       "| awk -F ' ' '{print($1,$2,$3,$4,$5,$6)}' > tmpcpu"
-        cmd_getvcore = "grep -A 1 mr_sparksql_scala_container_coun " + sdr+ \
-                       """ | grep -v mr_sparksql_scala_container_coun | grep -v '\-\-' \
-                       | awk -F' ' '{print($9,$11,$13)}' | sed -e 's/\// /g' >tmpvcore"""
+        #cmd_getvcore = "grep -A 1 mr_sparksql_scala_container_coun " + sdr+ \
+        #              """ | grep -v mr_sparksql_scala_container_coun | grep -v '\-\-' \
+        #             | awk -F' ' '{print($9,$11,$13)}' | sed -e 's/\// /g' >tmpvcore"""
+
+        cmd_getvcore = "grep -E 'CST.*MR.*SQL' " + sdr+ \
+                       """ | awk -F' ' '{print($9,$11,$13)}' | sed -e 's/\// /g' >tmpvcore"""
+
         cmd_getvcoresum = """cat tmpvcore | awk -F' ' '{print $1" "$2" "$3" "$4" "$5" "$1+$3+$5}'>tmpvcoresum"""
 
         os.system(cmd_getcpu) # create file "tmpcpu" in curent dir
@@ -168,9 +172,15 @@ def getServerUtilDict(FolderIPDict):
 
 def printc(rt, target):
     if rt <= target:
-        print  "\033[40;32m", rt, " \033[0m", # print in green color if meet target, otherwise red
+        print "\033[40;32m", rt, " \033[0m", # print in green color if meet target, otherwise red
     else:
         print "\033[40;31m", rt, " \033[0m",
+
+def printc2(rt, target):
+    if rt >= target:
+        print "\033[40;32m",rt, " \033[0m", # print in green color if meet target, otherwise red
+    else:
+        print rt,
 
 def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict):
     # print Title line for the quick view
@@ -232,8 +242,10 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
         print "\t{sql_nbr}\t".format(sql_nbr=datatable[row][17]),
         printc(int(round(float(datatable[row][18]))), 39) # SQL Time in color
 
-        print "\t{mrsql_nbr}\t{mrsql_nbr_vs_ref}x\t{mrsql_perwatt}\t{mrsql_perwatt_vs_ref}x\t{maxpower}\t{actualvcore}\t{usercpu}%\t{syscpu}%\t{idlecpu}%\t{jdk}". \
-            format(mrsql_nbr=int(MR_SQL_Nbr), mrsql_nbr_vs_ref=round(float(MR_SQL_Nbr_vs_Ref),2), \
+        printc2(int(MR_SQL_Nbr), 80000)
+
+        print "\t{mrsql_nbr_vs_ref}x\t{mrsql_perwatt}\t{mrsql_perwatt_vs_ref}x\t{maxpower}\t{actualvcore}\t{usercpu}%\t{syscpu}%\t{idlecpu}%\t{jdk}". \
+            format(mrsql_nbr_vs_ref=round(float(MR_SQL_Nbr_vs_Ref),2), \
                    mrsql_perwatt=round(float(MR_SQL_Nbr_Per_Watt),2), mrsql_perwatt_vs_ref=round(float(MR_SQL_Nbr_Per_Watt_vs_Ref),2), \
                    maxpower=int(datatable[row][22]), actualvcore=int(datatable[row][26]), usercpu=datatable[row][27]*100, syscpu=datatable[row][28]*100, idlecpu=datatable[row][29]*100, jdk=str(datatable[row][5])[-20:])
         row += 1
