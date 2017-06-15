@@ -170,6 +170,57 @@ def getServerUtilDict(FolderIPDict):
 
     return ServerUtilDict
 
+def getServerYarnDict(FolderIPDict):
+    sdrfile = "sdr_log*"
+
+    ServerYarnDumpDict, YarnDumpDict = {}, {}
+
+    for (k, v) in FolderIPDict.items():
+        sdr = glob.glob(os.path.join(WorkingDir, k, sdrfile))[0]
+        cmdGetNeeded = "grep -E 'CST.*==|Node-ID|Containers|Memory-Used|Memory-Capacity|CPU-Used|CPU-Capacity' " + sdr + " > tmpYarnDump"
+        os.system(cmdGetNeeded)
+
+        YarnDumpDict = copy.deepcopy(YarnDumpDict) if YarnDumpDict else YarnDumpDict
+        YarnDumpDict = {}
+        ServerYarnDumpDict[v] = YarnDumpDict
+
+        with open("tmpYarnDump") as f:
+            samplingMatrix, sampling = [], []
+            for line in f:
+                if re.compile("CST.*==").search(line):
+                    if sampling:
+                        samplingMatrix.append(sampling)
+
+                    sampling = []
+                    #timestamp = line.split(" ")[2] + " " + line.split(" ")[3] + " " + line.split(" ")[4]
+                    #sampling.append(timestamp)
+                    continue
+                if re.compile("Containers").search(line):
+                    sampling.append(int(line.split(":")[1].strip()))
+                    continue
+                if re.compile("Memory-Used").search(line):
+                    sampling.append(int(line.split(":")[1].split("MB")[0].strip()))
+                    continue
+                if re.compile("Memory-Capacity").search(line):
+                    sampling.append(int(line.split(":")[1].split("MB")[0].strip()))
+                    continue
+                if re.compile("CPU-Used").search(line):
+                    sampling.append(int(line.split(":")[1].split("vcores")[0].strip()))
+                    continue
+                if re.compile("CPU-Capacity").search(line):
+                    sampling.append(int(line.split(":")[1].split("vcores")[0].strip()))
+                    continue
+            np.set_printoptions(precision=2, suppress=True)
+        YarnDumpAvg = np.mean(samplingMatrix, 0)
+        YarnDumpDict["containers"] = YarnDumpAvg[0]
+        YarnDumpDict["mem-used"] = YarnDumpAvg[1]
+        YarnDumpDict["mem-all"] = YarnDumpAvg[2]
+        YarnDumpDict["cpu-used"] = YarnDumpAvg[3]
+        YarnDumpDict["cpu-all"] = YarnDumpAvg[4]
+
+    return ServerYarnDumpDict
+
+
 def printc(rt, target):
     if rt <= target:
         print "\033[40;32m", rt, " \033[0m", # print in green color if meet target, otherwise red
@@ -182,10 +233,11 @@ def printc2(rt, target):
     else:
         print rt,
 
-def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict):
+
+def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict):
     # print Title line for the quick view
-    print "\033[40;36m IP\t\tSMT/Vcore/Freq\tMR#\tMR_RT\tSQL#\tSQL_RT\tMR+SQL#\t#vsRef\tMRSQL/W\t/WvsRef\tMaxPowr\t" \
-          "AcuVcor\tUser%\tSys%\tIdle%\tJDK \033[0m"
+    print "\033[40;36m IP\tSMT/Vcore/Freq\tMR#\tMR_RT\tSQL#\tSQL_RT\tMR+SQL#\t#vsRef\tMRSQL/W\t/WvsRef\tMaxPowr\t" \
+          "AcuVcor\tUser%\tSys%\tIdle%\tYCon/CPU YMem(G)\tJDK \033[0m"
 
     # Get Ref server data for compare
     ref_tput = 0
@@ -195,7 +247,7 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
 
     # start to fill the pre-built 30 x N table
     server_nbr = len(sorted(FolderIPDict.values()))
-    datatable = [ [0 for i in range(30)] for j in range(server_nbr) ]
+    datatable = [ [0 for i in range(35)] for j in range(server_nbr) ]
     row = 0
     for server in sorted(FolderIPDict.values()):
         datatable[row][0] = server    # ip
@@ -228,6 +280,11 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
         datatable[row][27] = round(float(ServerUtilDict[server]["avgUser"])/100, 4)  # CPU User%
         datatable[row][28] = round(float(ServerUtilDict[server]["avgSys"])/100, 4)  # CPU Sys%
         datatable[row][29] = round(float(ServerUtilDict[server]["avgIdle"])/100, 4)   # CPU Idle%
+        datatable[row][30] = "" # column Experiment
+        datatable[row][31] = int(ServerYarnDict[server]["containers"])# containers
+        datatable[row][32] = int(ServerYarnDict[server]["cpu-used"])# cpu-used
+        datatable[row][33] = int(ServerYarnDict[server]["mem-used"])/1000 # mem-used, in GB unit
+        datatable[row][34] = "" # blank for now
 
         MR_SQL_Nbr = float(datatable[row][13]) + float(datatable[row][17])
         MR_SQL_Nbr_vs_Ref = MR_SQL_Nbr/ref_tput if ref_tput != 0 else 0
@@ -236,7 +293,7 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
         MR_SQL_Nbr_Per_Watt_vs_Ref = MR_SQL_Nbr_Per_Watt/ref_tput_per_watt if ref_tput != 0 else 0
 
         print "{ip}\t{smt}/{vcore}/{freq}\t{mr_nbr}\t". \
-            format(ip=datatable[row][0], smt=datatable[row][9], vcore=datatable[row][10], freq=str(datatable[row][11])[0:4], mr_nbr=datatable[row][13]),
+            format(ip=datatable[row][0].split(".")[2] + "." + datatable[row][0].split(".")[3], smt=datatable[row][9], vcore=datatable[row][10], freq=str(datatable[row][11])[0:4], mr_nbr=datatable[row][13]),
         printc(int(round(float(datatable[row][14]))), 62) # MR Time in color
 
         print "\t{sql_nbr}\t".format(sql_nbr=datatable[row][17]),
@@ -244,17 +301,23 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
 
         printc2(int(MR_SQL_Nbr), 80000)
 
-        print "\t{mrsql_nbr_vs_ref}x\t{mrsql_perwatt}\t{mrsql_perwatt_vs_ref}x\t{maxpower}\t{actualvcore}\t{usercpu}%\t{syscpu}%\t{idlecpu}%\t{jdk}". \
+        print "\t{mrsql_nbr_vs_ref}x\t{mrsql_perwatt}\t{mrsql_perwatt_vs_ref}x\t{maxpower}" \
+              "\t{actualvcore}\t{usercpu}%\t{syscpu}%\t{idlecpu}%\t{yarnConCpu}\t{yarnMem}\t{jdk}". \
             format(mrsql_nbr_vs_ref=round(float(MR_SQL_Nbr_vs_Ref),2), \
-                   mrsql_perwatt=round(float(MR_SQL_Nbr_Per_Watt),2), mrsql_perwatt_vs_ref=round(float(MR_SQL_Nbr_Per_Watt_vs_Ref),2), \
-                   maxpower=int(datatable[row][22]), actualvcore=int(datatable[row][26]), usercpu=datatable[row][27]*100, syscpu=datatable[row][28]*100, idlecpu=datatable[row][29]*100, jdk=str(datatable[row][5])[-20:])
+                   mrsql_perwatt=round(float(MR_SQL_Nbr_Per_Watt),2), \
+                   mrsql_perwatt_vs_ref=round(float(MR_SQL_Nbr_Per_Watt_vs_Ref),2), \
+                   maxpower=int(datatable[row][22]), actualvcore=int(datatable[row][26]), \
+                   usercpu=datatable[row][27]*100, syscpu=datatable[row][28]*100, idlecpu=datatable[row][29]*100, \
+                   yarnConCpu=str(datatable[row][31]) + "/" + str(datatable[row][32]), yarnMem=datatable[row][33], \
+                   jdk=str(datatable[row][5])[-16:])
         row += 1
 
     print "\033[40;36m\nCSV Input: \033[0m"
     for i in range(server_nbr):
-        for j in range(30):
+        for j in range(35):
             print "{item},".format(item=datatable[i][j]),
         print
+
 
 
 
@@ -274,4 +337,10 @@ ServerPerfDict = getServerPerfDict(FolderIPDict)
 ServerPowerDict = getServerPowerDict(FolderIPDict)
 ServerUtilDict = getServerUtilDict(FolderIPDict)
 
-writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict)
+ServerYarnDict = getServerYarnDict(FolderIPDict)
+
+writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict)
+
+
+
+
