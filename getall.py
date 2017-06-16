@@ -177,7 +177,8 @@ def getServerYarnDict(FolderIPDict):
 
     for (k, v) in FolderIPDict.items():
         sdr = glob.glob(os.path.join(WorkingDir, k, sdrfile))[0]
-        cmdGetNeeded = "grep -E 'CST.*==|Node-ID|Containers|Memory-Used|Memory-Capacity|CPU-Used|CPU-Capacity' " + sdr + " > tmpYarnDump"
+        cmdGetNeeded = "grep -P 'CST.*==|Node-ID|Containers|Memory-Used|Memory-Capacity" \
+                       "|CPU-Used|CPU-Capacity|(\d{1,2}\.\d{1,2}\ *){6}' " + sdr + " > tmpYarnDump"
         os.system(cmdGetNeeded)
 
         YarnDumpDict = copy.deepcopy(YarnDumpDict) if YarnDumpDict else YarnDumpDict
@@ -192,8 +193,20 @@ def getServerYarnDict(FolderIPDict):
                         samplingMatrix.append(sampling)
 
                     sampling = []
-                    #timestamp = line.split(" ")[2] + " " + line.split(" ")[3] + " " + line.split(" ")[4]
+
+                    # un-comment below 3 lines for dist statistics
+                    #sampling.append(k)
+                    #timestamp = line.split(" ")[4].split(":")[0]
                     #sampling.append(timestamp)
+
+                    continue
+                if re.compile("(\d{1,2}\.\d{1,2}\ *){6}").search(line):
+                    sampling.append(float(line.strip().split()[0].strip()))
+                    sampling.append(float(line.strip().split()[1].strip()))
+                    sampling.append(float(line.strip().split()[2].strip()))
+                    sampling.append(float(line.strip().split()[3].strip()))
+                    sampling.append(float(line.strip().split()[4].strip()))
+                    sampling.append(float(line.strip().split()[5].strip()))
                     continue
                 if re.compile("Containers").search(line):
                     sampling.append(int(line.split(":")[1].strip()))
@@ -210,14 +223,33 @@ def getServerYarnDict(FolderIPDict):
                 if re.compile("CPU-Capacity").search(line):
                     sampling.append(int(line.split(":")[1].split("vcores")[0].strip()))
                     continue
-            np.set_printoptions(precision=2, suppress=True)
-        YarnDumpAvg = np.mean(samplingMatrix, 0)
-        YarnDumpDict["containers"] = YarnDumpAvg[0]
-        YarnDumpDict["mem-used"] = YarnDumpAvg[1]
-        YarnDumpDict["mem-all"] = YarnDumpAvg[2]
-        YarnDumpDict["cpu-used"] = YarnDumpAvg[3]
-        YarnDumpDict["cpu-all"] = YarnDumpAvg[4]
 
+
+        np.set_printoptions(precision=2, suppress=True)
+        for row in samplingMatrix:
+            print row
+        sys.exit()
+        YarnDumpAvg = np.mean(samplingMatrix, 0)
+        YarnDumpDict["cpu_user"] = YarnDumpAvg[0]
+        YarnDumpDict["cpu_nice"] = YarnDumpAvg[1]
+        YarnDumpDict["cpu_sys"] = YarnDumpAvg[2]
+        YarnDumpDict["cpu_io"] = YarnDumpAvg[3]
+        YarnDumpDict["cpu_steal"] = YarnDumpAvg[4]
+        YarnDumpDict["cpu_idle"] = YarnDumpAvg[5]
+
+        YarnDumpDict["containers"] = YarnDumpAvg[6]
+        YarnDumpDict["mem-used"] = YarnDumpAvg[7]
+        YarnDumpDict["mem-all"] = YarnDumpAvg[8]
+        YarnDumpDict["cpu-used"] = YarnDumpAvg[9]
+        YarnDumpDict["cpu-all"] = YarnDumpAvg[10]
+        """
+
+        for row in samplingMatrix:
+            for i in row:
+                print i,
+            print
+    sys.exit()
+    """
     return ServerYarnDumpDict
 
 
