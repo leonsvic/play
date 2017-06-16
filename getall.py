@@ -193,6 +193,8 @@ def getServerYarnDict(FolderIPDict):
                         samplingMatrix.append(sampling)
 
                     sampling = []
+                    for i in range(11):
+                        sampling += [0]
 
                     # un-comment below 3 lines for dist statistics
                     #sampling.append(k)
@@ -201,34 +203,34 @@ def getServerYarnDict(FolderIPDict):
 
                     continue
                 if re.compile("(\d{1,2}\.\d{1,2}\ *){6}").search(line):
-                    sampling.append(float(line.strip().split()[0].strip()))
-                    sampling.append(float(line.strip().split()[1].strip()))
-                    sampling.append(float(line.strip().split()[2].strip()))
-                    sampling.append(float(line.strip().split()[3].strip()))
-                    sampling.append(float(line.strip().split()[4].strip()))
-                    sampling.append(float(line.strip().split()[5].strip()))
+                    sampling[0] = float(line.strip().split()[0].strip())
+                    sampling[1] = float(line.strip().split()[1].strip())
+                    sampling[2] = float(line.strip().split()[2].strip())
+                    sampling[3] = float(line.strip().split()[3].strip())
+                    sampling[4] = float(line.strip().split()[4].strip())
+                    sampling[5] = float(line.strip().split()[5].strip())
                     continue
                 if re.compile("Containers").search(line):
-                    sampling.append(int(line.split(":")[1].strip()))
+                    sampling[6] = int(line.split(":")[1].strip())
                     continue
                 if re.compile("Memory-Used").search(line):
-                    sampling.append(int(line.split(":")[1].split("MB")[0].strip()))
+                    sampling[7] = int(line.split(":")[1].split("MB")[0].strip())
                     continue
                 if re.compile("Memory-Capacity").search(line):
-                    sampling.append(int(line.split(":")[1].split("MB")[0].strip()))
+                    sampling[8] = int(line.split(":")[1].split("MB")[0].strip())
                     continue
                 if re.compile("CPU-Used").search(line):
-                    sampling.append(int(line.split(":")[1].split("vcores")[0].strip()))
+                    sampling[9] = int(line.split(":")[1].split("vcores")[0].strip())
                     continue
                 if re.compile("CPU-Capacity").search(line):
-                    sampling.append(int(line.split(":")[1].split("vcores")[0].strip()))
+                    sampling[10] = int(line.split(":")[1].split("vcores")[0].strip())
                     continue
 
 
         np.set_printoptions(precision=2, suppress=True)
-        for row in samplingMatrix:
-            print row
-        sys.exit()
+        #for row in samplingMatrix:
+        #    print row
+        #sys.exit()
         YarnDumpAvg = np.mean(samplingMatrix, 0)
         YarnDumpDict["cpu_user"] = YarnDumpAvg[0]
         YarnDumpDict["cpu_nice"] = YarnDumpAvg[1]
@@ -242,8 +244,8 @@ def getServerYarnDict(FolderIPDict):
         YarnDumpDict["mem-all"] = YarnDumpAvg[8]
         YarnDumpDict["cpu-used"] = YarnDumpAvg[9]
         YarnDumpDict["cpu-all"] = YarnDumpAvg[10]
-        """
 
+    """
         for row in samplingMatrix:
             for i in row:
                 print i,
@@ -313,9 +315,9 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
         datatable[row][28] = round(float(ServerUtilDict[server]["avgSys"])/100, 4)  # CPU Sys%
         datatable[row][29] = round(float(ServerUtilDict[server]["avgIdle"])/100, 4)   # CPU Idle%
         datatable[row][30] = "" # column Experiment
-        datatable[row][31] = int(ServerYarnDict[server]["containers"])# containers
-        datatable[row][32] = int(ServerYarnDict[server]["cpu-used"])# cpu-used
-        datatable[row][33] = int(ServerYarnDict[server]["mem-used"])/1000 # mem-used, in GB unit
+        datatable[row][31] = int(round(ServerYarnDict[server]["containers"]))# containers
+        datatable[row][32] = int(round(ServerYarnDict[server]["cpu-used"]))# cpu-used
+        datatable[row][33] = int(round(ServerYarnDict[server]["mem-used"]))/1000 # mem-used, in GB unit
         datatable[row][34] = "" # blank for now
 
         MR_SQL_Nbr = float(datatable[row][13]) + float(datatable[row][17])
@@ -370,6 +372,7 @@ ServerPowerDict = getServerPowerDict(FolderIPDict)
 ServerUtilDict = getServerUtilDict(FolderIPDict)
 
 ServerYarnDict = getServerYarnDict(FolderIPDict)
+
 
 writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict)
 
