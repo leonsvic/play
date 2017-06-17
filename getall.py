@@ -8,22 +8,27 @@ import csv
 import re # regular expression
 import copy
 import numpy as np
-
+import argparse
 
 
 def getFolderIPDict(WorkingDir):
     subfolders = os.walk(WorkingDir).next()[1] # check os.walk? to understand the return tuple structure
-    IPList = []
+    validSubfolders, IPList = [], []
     for i, value in enumerate(subfolders):
         try:
             if value.index("tdw") == 0:
-               IPList.append((value.replace("-", ".")).replace("tdw.", ""))
+                # check whether the server dir is empty firstly
+                if not os.listdir(os.path.join(WorkingDir, value)):
+                    print value + " folder is empty, skip it..."
+                    continue
+                validSubfolders.append(value)
+                IPList.append((value.replace("-", ".")).replace("tdw.", ""))
         except ValueError:
             print "Something wrong with sub-folders names, should be in such format: tdw-100-76-29-3"
             sys.exit(1)
             # if goes here, means "twd" not found in some of the sub-folder, probably structure wrong
 
-    FolderIPDict = dict(zip(subfolders, IPList))
+    FolderIPDict = dict(zip(validSubfolders, IPList))
     return FolderIPDict
 
 def getServerConfig(FolderIPDict):
@@ -72,6 +77,8 @@ def getServerPerfDict(FolderIPDict):
     ServerPerfDict, PerfDict = {}, {}
 
     for (k, v) in FolderIPDict.items():
+
+
         PerfDict = copy.deepcopy(PerfDict) if PerfDict else PerfDict
         PerfDict = {}
         ServerPerfDict[v] = PerfDict
@@ -136,6 +143,11 @@ def getServerUtilDict(FolderIPDict):
         UtilDict = {}
         ServerUtilDict[v] = UtilDict
         sdr = glob.glob(os.path.join(WorkingDir, k, sdrfile))[0]
+        if sdr.find("gz") != -1:
+            cmd_gz = "gunzip " + sdr
+            print "unzipping sdr file: ", cmd_gz
+            os.system(cmd_gz)
+            sdr = sdr.split(".gz")[0]
         cmd_getcpu = "grep -A 1 avg-cpu " + sdr + " | grep -v 'avg-cpu' | grep -v '\-\-' " \
                                                       "| awk -F ' ' '{print($1,$2,$3,$4,$5,$6)}' > tmpcpu"
         #cmd_getvcore = "grep -A 1 mr_sparksql_scala_container_coun " + sdr+ \
@@ -228,9 +240,6 @@ def getServerYarnDict(FolderIPDict):
 
 
         np.set_printoptions(precision=2, suppress=True)
-        #for row in samplingMatrix:
-        #    print row
-        #sys.exit()
         YarnDumpAvg = np.mean(samplingMatrix, 0)
         YarnDumpDict["cpu_user"] = YarnDumpAvg[0]
         YarnDumpDict["cpu_nice"] = YarnDumpAvg[1]
@@ -269,7 +278,7 @@ def printc2(rt, target):
 
 
 def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict):
-    # print Title line for the quick view
+    # print "quick-view" table title line
     print "\033[40;36m IP\tSMT/Vcore/Freq\tMR#\tMR_RT\tSQL#\tSQL_RT\tMR+SQL#\t#vsRef\tMRSQL/W\t/WvsRef\tMaxPowr\t" \
           "AcuVcor\tUser%\tSys%\tIdle%\tYCon/CPU YMem(G)\tJDK \033[0m"
 
@@ -326,6 +335,8 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
         MR_SQL_Nbr_Per_Watt = float(MR_SQL_Nbr)/float(datatable[row][22])/int(Duration) if datatable[row][22] !=0 else 0
         MR_SQL_Nbr_Per_Watt_vs_Ref = MR_SQL_Nbr_Per_Watt/ref_tput_per_watt if ref_tput != 0 else 0
 
+
+        # start to print the "quick-view" table content
         print "{ip}\t{smt}/{vcore}/{freq}\t{mr_nbr}\t". \
             format(ip=datatable[row][0].split(".")[2] + "." + datatable[row][0].split(".")[3], smt=datatable[row][9], vcore=datatable[row][10], freq=str(datatable[row][11])[0:4], mr_nbr=datatable[row][13]),
         printc(int(round(float(datatable[row][14]))), 62) # MR Time in color
@@ -346,11 +357,14 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
                    jdk=str(datatable[row][5])[-16:])
         row += 1
 
-    print "\033[40;36m\nCSV Input: \033[0m"
-    for i in range(server_nbr):
-        for j in range(35):
-            print "{item},".format(item=datatable[i][j]),
-        print
+    print
+    # dump csv input only when -c is set
+    if dumpCSVFlag:
+        print "\033[40;36m\nCSV Input: \033[0m"
+        for i in range(server_nbr):
+           for j in range(35):
+              print "{item},".format(item=datatable[i][j]),
+           print
 
 
 
@@ -358,13 +372,24 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
 if __name__ != "__main__":
     sys.exit(1)
 
-if len(sys.argv) != 3:
-    print("Usage: %s <name_of_the_folder_that_contains_sub-folder_for_each_machine> <12 or 24>" % sys.argv[0])
-    sys.exit(1)
+# verify the command options
+parser = argparse.ArgumentParser()
+parser.add_argument("dir",
+                    help="The directory that contains all machines' one-day log")
+parser.add_argument("duration",
+                    type=int, choices=[12, 24],
+                    help="Collection duration, only support 12H or 24H for now")
+parser.add_argument("-c", nargs="?", default="0", const="1",
+                    help="Optional, default off, will dump csv input if set")
+
+args = parser.parse_args(sys.argv[1:])
+dumpCSVFlag = int(args.c)
 
 WorkingDir = sys.argv[1]
 Duration = sys.argv[2]
 
+
+# start to work
 FolderIPDict = getFolderIPDict(WorkingDir)
 ServerConfig = getServerConfig(FolderIPDict)
 ServerPerfDict = getServerPerfDict(FolderIPDict)
