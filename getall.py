@@ -101,11 +101,15 @@ def getServerPerfDict(FolderIPDict):
                 if count == 7 and re.compile("Average task duration").search(line):
                     PerfDict["sql_time"] = line.split(":")[1].split("sec")[0].strip()
                     continue
-                if count == 9 and re.compile("Total tasks").search(line):
-                    PerfDict["scala_nbr"] = line.split(":")[1].strip()
+                if count == 9:
+                    PerfDict["scala_nbr"] = 0
+                    if re.compile("Total tasks").search(line):
+                        PerfDict["scala_nbr"] = line.split(":")[1].strip()
                     continue
-                if count == 10 and re.compile("Average task duration").search(line):
-                    PerfDict["scala_time"] = line.split(":")[1].split("sec")[0].strip()
+                if count == 10:
+                    PerfDict["scala_time"] = 0
+                    if re.compile("Average task duration").search(line):
+                        PerfDict["scala_time"] = line.split(":")[1].split("sec")[0].strip()
                     continue
 
     # print ServerPerfDict
@@ -279,6 +283,7 @@ def printc2(rt, target):
 
 def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict):
     # print "quick-view" table title line
+    print WorkingDir
     print "\033[40;36m IP\tSMT/Vcore/Freq\tMR#\tMR_RT\tSQL#\tSQL_RT\tMR+SQL#\t#vsRef\tMRSQL/W\t/WvsRef\tMaxPowr\t" \
           "AcuVcor\tUser%\tSys%\tIdle%\tYCon/CPU YMem(G)\tJDK \033[0m"
 
