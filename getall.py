@@ -95,11 +95,15 @@ def getServerPerfDict(FolderIPDict):
                 if count == 4 and re.compile("Average task duration").search(line):
                     PerfDict["mr_time"] = line.split(":")[1].split("sec")[0].strip()
                     continue
-                if count == 6 and re.compile("Total tasks").search(line):
-                    PerfDict["sql_nbr"] = line.split(":")[1].strip()
+                if count == 6:
+                    PerfDict["sql_nbr"] = 0
+                    if re.compile("Total tasks").search(line):
+                        PerfDict["sql_nbr"] = line.split(":")[1].strip()
                     continue
-                if count == 7 and re.compile("Average task duration").search(line):
-                    PerfDict["sql_time"] = line.split(":")[1].split("sec")[0].strip()
+                if count == 7:
+                    PerfDict["sql_time"] = 0
+                    if re.compile("Average task duration").search(line):
+                        PerfDict["sql_time"] = line.split(":")[1].split("sec")[0].strip()
                     continue
                 if count == 9:
                     PerfDict["scala_nbr"] = 0
@@ -211,12 +215,6 @@ def getServerYarnDict(FolderIPDict):
                     sampling = []
                     for i in range(11):
                         sampling += [0]
-
-                    # un-comment below 3 lines for dist statistics
-                    #sampling.append(k)
-                    #timestamp = line.split(" ")[4].split(":")[0]
-                    #sampling.append(timestamp)
-
                     continue
                 if re.compile("(\d{1,2}\.\d{1,2}\ *){6}").search(line):
                     sampling[0] = float(line.strip().split()[0].strip())
@@ -242,7 +240,6 @@ def getServerYarnDict(FolderIPDict):
                     sampling[10] = int(line.split(":")[1].split("vcores")[0].strip())
                     continue
 
-
         np.set_printoptions(precision=2, suppress=True)
         YarnDumpAvg = np.mean(samplingMatrix, 0)
         YarnDumpDict["cpu_user"] = YarnDumpAvg[0]
@@ -258,14 +255,32 @@ def getServerYarnDict(FolderIPDict):
         YarnDumpDict["cpu-used"] = YarnDumpAvg[9]
         YarnDumpDict["cpu-all"] = YarnDumpAvg[10]
 
-    """
-        for row in samplingMatrix:
-            for i in row:
-                print i,
-            print
-    sys.exit()
-    """
     return ServerYarnDumpDict
+
+def getServerHottubDict(FolderIPDict):
+    htfile = "hottub_log*"
+    ServerHTDict, HTDict = {}, {}
+
+    for (k, v) in FolderIPDict.items():
+        if len(glob.glob(os.path.join(WorkingDir, k, htfile))) == 0:
+                print k, "is not hottub JDK, skipping hottub metrics collection.."
+                continue
+        htlog = glob.glob(os.path.join(WorkingDir, k, htfile))[0]
+
+        HTDict = copy.deepcopy(HTDict) if HTDict else HTDict
+        HTDict = {}
+        ServerHTDict[v] = HTDict
+        count = 0
+        with open(htlog) as f:
+            for line in f:
+                count += 1
+                if count == 1 and not re.compile("total_crash_cnt").search(line):
+                    print "warning: hottub log format may be changed, aborting hottub info gathering.."
+                    return
+                if count == 2:
+                    datalist = line.replace(" ", "").strip().split(",")
+                    HTDict["value"] = datalist
+    return ServerHTDict
 
 
 def printc(rt, target):
@@ -281,7 +296,7 @@ def printc2(rt, target):
         print rt,
 
 
-def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict):
+def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict, ServerHottubDict):
     # print "quick-view" table title line
     print WorkingDir
     print "\033[40;36m IP\tSMT/Vcore/Freq\tMR#\tMR_RT\tSQL#\tSQL_RT\tMR+SQL#\t#vsRef\tMRSQL/W\t/WvsRef\tMaxPowr\t" \
@@ -363,13 +378,41 @@ def writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, Server
         row += 1
 
     print
+
+    # print hottub metrics
+    if not len(ServerHottubDict) == 0:
+
+        print "\033[40;36m Hottub Metrics \033[0m"
+        print "\033[40;36m IP\t\tAllCras\tTskCras\tFailCtn\tGCLimit\t" \
+              "MrReuse\tMrNew\tMRRatio\tMrFBack\tSqlReus\tSqlNew\tSqlRato\tSqlFBac\tConvention\tJDK \033[0m"
+
+
+        for v in sorted(ServerHottubDict.values()):
+            print v["value"][0], #IP
+            print "\t", v["value"][1], # all crash
+            print "\t", v["value"][2], # task crash
+            print "\t", v["value"][3], # failed container
+            print "\t", v["value"][4], # GC limit
+            print "\t", v["value"][5], # MR reuse
+            print "\t", v["value"][9], # MR new
+            print "\t\033[40;36m", round(float(v["value"][5])/float(v["value"][9]),1) \
+                if not int(v["value"][9]) == 0 else 0, "\033[0m",# MR reuse ratio
+            print "\t", v["value"][7], # MR fall back
+            print "\t", v["value"][6], # SQL reuse
+            print "\t", v["value"][10], # SQL new
+            print "\t\033[40;36m", round(float(v["value"][6])/float(v["value"][10]),1) \
+                if not int(v["value"][10]) == 0 else 0, "\033[0m",  # SQL reuse ratio
+            print "\t", v["value"][8], # SQL fall bacll
+            print "\t", v["value"][11], # Conventional
+            print "\t", ServerConfig[v["value"][0]]["JAVA_HOME"][-16:]
+
     # dump csv input only when -c is set
     if dumpCSVFlag:
         print "\033[40;36m\nCSV Input: \033[0m"
         for i in range(server_nbr):
-           for j in range(35):
-              print "{item},".format(item=datatable[i][j]),
-           print
+            for j in range(35):
+                print "\b{item},".format(item=datatable[i][j]),
+            print
 
 
 
@@ -403,8 +446,9 @@ ServerUtilDict = getServerUtilDict(FolderIPDict)
 
 ServerYarnDict = getServerYarnDict(FolderIPDict)
 
+ServerHottubDict = getServerHottubDict(FolderIPDict)
 
-writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict)
+writeCSV(FolderIPDict, ServerConfig, ServerPerfDict, ServerPowerDict, ServerUtilDict, ServerYarnDict, ServerHottubDict)
 
 
 
