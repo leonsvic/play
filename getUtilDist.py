@@ -206,7 +206,7 @@ def getServerYarnDict(FolderIPDict):
 
                     sampling[0] = date # date
                     sampling[1] = k # IP
-                    sampling[2] = line.split(" ")[4].split(":")[0] # hour
+                    sampling[2] = line.split()[4].split(":")[0] # hour
 
                     continue
                 if re.compile("(\d{1,2}\.\d{1,2}\ *){6}").search(line):
@@ -259,12 +259,14 @@ def getServerYarnDict(FolderIPDict):
         "SELECT ip, hour, "
         "avg(cpu_user)/100 AS cpu_user, "
         "(100-avg(cpu_idle))/100 AS non_idle, "
-        "avg(cpu_used)/avg(cpu_all) AS vcore_ratio "
+        "avg(cpu_used)/avg(cpu_all) AS vcore_ratio, "
+        "avg(cpu_used) AS cpu_used, "
+        "avg(mem_used) AS mem_used "
         "FROM table GROUP BY ip, hour ORDER BY ip, hour")
 
     outputhome = "/mactmp/sql/"+WorkingDir.split("/")[-1]
     print outputhome
-    sqldf.coalesce(1).write.csv(outputhome)
+    sqldf.coalesce(1).write.csv(outputhome, header=True)
 
 
     sys.exit()
@@ -384,7 +386,7 @@ Duration = sys.argv[2]
 
 # extract the date info from the directory name which stores one-day data
 date = WorkingDir.split("/")[-1][0:4]  # get the last dir in the full path use [-1], then use [0:4] to get the 1st 4
-if not re.compile("[0-1][0-9][1-3][0-9]").search(date):
+if not re.compile("[0-1][0-9][0-3][0-9]").search(date):
     print "missing date info in the dir-name:"
     print WorkingDir.split("/")[-1]
     sys.exit()
