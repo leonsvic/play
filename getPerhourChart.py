@@ -10,8 +10,7 @@ import copy
 import numpy as np
 import pandas as pd
 from pyspark.sql import SparkSession
-
-
+import argparse
 
 def getFolderIPDict(WorkingDir):
     subfolders = os.walk(WorkingDir).next()[1]  # check os.walk? to understand the return tuple structure
@@ -33,6 +32,8 @@ def getFolderIPDict(WorkingDir):
     FolderIPDict = dict(zip(validSubfolders, IPList))
     return FolderIPDict
 
+
+
 def plot(df):
     iplist = df["ip"].drop_duplicates().tolist()
     for ip in iplist:
@@ -49,12 +50,12 @@ def plot(df):
         df["yarn_mem"] = df["yarn_mem_used"]/1000
 
         df_plot = df[df["ip"] == ip][["hour", "cpu_nonidle%", "vcore%"]]
-        df_plot.plot(x="hour", kind="line", figsize=(8, 3), title="vcore% vs cpu% - " + date + " - " + ip,
+        df_plot.plot(x="hour", kind="line", figsize=(6, 2), title="vcore% vs cpu% - " + date + " - " + ip,
                      xticks=[0, 3, 6, 9, 12, 15, 18, 21, 24], yticks=[0.2, 0.4, 0.6, 0.8, 1.0, 1.2], grid=True)
 
-        df_plot = df[df["ip"] == ip][["hour", "mem_used", "yarn_mem"]]
-        df_plot.plot(x="hour", kind="line", figsize=(8, 3), title="memory - " + date + " - " + ip,
-                     xticks=[0, 3, 6, 9, 12, 15, 18, 21, 24], grid=True, color=["red", "black"])
+        #df_plot = df[df["ip"] == ip][["hour", "mem_used", "yarn_mem"]]
+        #df_plot.plot(x="hour", kind="line", figsize=(6, 2), title="memory - " + date + " - " + ip,
+        #            xticks=[0, 3, 6, 9, 12, 15, 18, 21, 24], grid=True, color=["red", "black"])
 
         #df_plot = df[df["ip"] == ip]["mem_used"]
         #ax = df_plot.plot(kind="bar", secondary_y="mem_used", color="grey", grid=True)
@@ -73,7 +74,7 @@ def createPerHourCSV(FolderIPDict, outputcsv):
 
     # check whether created already
     if os.path.exists(outputcsv):
-        print outputcsv, "already created, go plotting."
+        #print outputcsv, "already created, go plotting."
         df = pd.read_csv(outputcsv)
         plot(df)
         return
@@ -153,17 +154,68 @@ def printc2(rt, target):
     else:
         print rt,
 
+def plotPerMinuteView(FolderIPDict, metric):
+    for (k, v) in sorted(FolderIPDict.items()):
+        utilfile = os.path.join(WorkingDir, k, "util.csv")
+        if not os.path.exists(utilfile):
+            print utilfile, "doesn't exit, skip for this machine.. "
+            continue
+
+        df = pd.read_csv(utilfile)
+        df["day"] = df.date.map(lambda x: "-".join(x.split()[1:3])) #
+        df["weekday"] = df.date.map(lambda x: x.split()[0]) #
+        df["year"] = df.date.map(lambda x: x.split()[5]) #
+        df["cpu_nonidle%"] = (100 - df["cpu_idle"])/100
+        df["vcore%"] = df["yarn_cpu_used"]/df["yarn_cpu_all"]
+
+        df["memPerVcore"] = df["yarn_mem_used"]/df["yarn_cpu_used"]/1000
+        df["min"] = df.date.map(lambda x: ":".join(x.split()[3].split(":")[0:2]))
+
+        #print df.colunms
+        if metric == "mem":
+            plotCol = "mem_used"
+            ytick = [0, 128, 192, 256, 384, 512]
+        elif metric == "cpu":
+            plotCol = "cpu_nonidle%"
+            ytick = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        elif metric == "mpc":
+            plotCol = "memPerVcore"
+            ytick = [0, 1, 2, 2.5, 3, 4, 5]
+        elif metric == "vcore":
+            plotCol = "yarn_cpu_used"
+            ytick = [0, 22, 44, 66]
+
+        df_plot = df[["min", plotCol]]
+        df_plot.plot(x="min", kind="line", figsize=(10, 2), title=plotCol + " - " + date + " - " + v,
+                     yticks=ytick, grid=True)
+
 
 
 if __name__ != "__main__":
     sys.exit(1)
 
-if len(sys.argv) != 3:
-    print("Usage: %s <name_of_the_folder_that_contains_sub-folder_for_each_machine> <12 or 24>" % sys.argv[0])
-    sys.exit(1)
+
+# verify the command options
+parser = argparse.ArgumentParser()
+parser.add_argument("dir",
+                    help="The directory that contains all machines' one-day log")
+parser.add_argument("duration",
+                    type=int, choices=[12, 24],
+                    help="Collection duration, only support 12H or 24H for now")
+parser.add_argument("metric",
+                    help="metric to be plot, supporting: mem, cpu, mpc, vcore")
+parser.add_argument("-o", nargs="?", default="0", const="1",
+                    help="Optional, get per-minute view if set")
+
+args = parser.parse_args(sys.argv[1:])
+perHourView = int(args.o)
 
 WorkingDir = sys.argv[1]
 Duration = sys.argv[2]
+plotMetric = sys.argv[3]
+
+
+
 
 # extract the date info from the directory name which stores one-day data
 #date = WorkingDir.split("/")[-1][0:8]  # get the last dir in the full path use [-1], then use [0:4] to get the 1st 4
@@ -176,10 +228,12 @@ if not re.compile("[0-1][0-9][0-3][0-9]").search(date):
 
 FolderIPDict = getFolderIPDict(WorkingDir)
 
-outputcsv = "/mactmp/dailyPerHourUtil/" +date + ".csv"
-createPerHourCSV(FolderIPDict, outputcsv)
+if perHourView:
+    outputcsv = "/mactmp/dailyPerHourUtil/" +date + ".csv"
+    createPerHourCSV(FolderIPDict, outputcsv)
+    sys.exit()
 
-
+plotPerMinuteView(FolderIPDict, plotMetric)
 
 
 
