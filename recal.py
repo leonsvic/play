@@ -1,3 +1,6 @@
+## play with git cmd -1
+
+
 #!/usr/bin/python
 
 import glob
